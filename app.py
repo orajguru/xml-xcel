@@ -4,29 +4,43 @@ import pandas as pd
 import io
 from parser import parse_xml
 
-st.set_page_config(page_title="XML → Excel Field Extractor", layout="wide")
+st.set_page_config(page_title="XML → Excel Metadata Extractor (Pro)", layout="wide")
 
-st.title("XML → Excel Field Extractor")
-st.write("Upload an XML file and download an Excel sheet with field metadata.")
+st.title("XML → Excel Metadata Extractor (Production Version)")
 
-uploaded_file = st.file_uploader("Upload XML file", type=["xml"])
+st.write(
+"""Upload an XML configuration file.  
+The tool automatically:
+- Detects fields anywhere in the XML
+- Handles row / col / nested layouts
+- Extracts ALL metadata attributes dynamically
+- Reconstructs Tab / Section hierarchy
+- Generates a downloadable Excel data dictionary
+"""
+)
+
+uploaded_file = st.file_uploader("Upload XML File", type=["xml"])
 
 if uploaded_file:
-    st.success("XML uploaded successfully")
 
     df = parse_xml(uploaded_file)
 
-    st.subheader("Preview")
-    st.dataframe(df, use_container_width=True)
+    if df.empty:
+        st.error("No fields detected in XML.")
+    else:
+        st.success(f"Parsed {len(df)} fields")
 
-    buffer = io.BytesIO()
+        st.subheader("Preview")
+        st.dataframe(df, use_container_width=True)
 
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Fields")
+        buffer = io.BytesIO()
 
-    st.download_button(
-        label="Download Excel",
-        data=buffer.getvalue(),
-        file_name="xml_fields_dictionary.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Fields")
+
+        st.download_button(
+            label="Download Excel",
+            data=buffer.getvalue(),
+            file_name="xml_field_dictionary.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
