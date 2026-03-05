@@ -2,20 +2,23 @@
 import streamlit as st
 import pandas as pd
 import io
-from parser import parse_xml
+from parser import parse_xml, analyze_structure
 
-st.set_page_config(page_title="XML → Excel Metadata Extractor (Pro)", layout="wide")
+st.set_page_config(page_title="XML Reverse Engineering Tool", layout="wide")
 
-st.title("XML → Excel Metadata Extractor (Production Version)")
+st.title("XML Reverse Engineering Tool")
 
 st.write(
-"""Upload an XML configuration file.  
-The tool automatically:
-- Detects fields anywhere in the XML
-- Handles row / col / nested layouts
-- Extracts ALL metadata attributes dynamically
-- Reconstructs Tab / Section hierarchy
-- Generates a downloadable Excel data dictionary
+"""
+Upload any XML UI/config file and the tool will:
+
+• Detect fields dynamically  
+• Identify tab / section / row hierarchy  
+• Extract ALL metadata attributes  
+• Generate a data dictionary Excel  
+• Show XML structure insights  
+
+Designed for reverse engineering large enterprise XML forms.
 """
 )
 
@@ -23,14 +26,22 @@ uploaded_file = st.file_uploader("Upload XML File", type=["xml"])
 
 if uploaded_file:
 
+    structure_info = analyze_structure(uploaded_file)
+
+    st.subheader("XML Structure Overview")
+    st.write(structure_info)
+
+    uploaded_file.seek(0)
+
     df = parse_xml(uploaded_file)
 
     if df.empty:
-        st.error("No fields detected in XML.")
+        st.error("No fields with 'fieldid' attribute detected.")
     else:
-        st.success(f"Parsed {len(df)} fields")
 
-        st.subheader("Preview")
+        st.success(f"{len(df)} fields detected")
+
+        st.subheader("Field Metadata Preview")
         st.dataframe(df, use_container_width=True)
 
         buffer = io.BytesIO()
@@ -39,8 +50,8 @@ if uploaded_file:
             df.to_excel(writer, index=False, sheet_name="Fields")
 
         st.download_button(
-            label="Download Excel",
+            label="Download Data Dictionary (Excel)",
             data=buffer.getvalue(),
-            file_name="xml_field_dictionary.xlsx",
+            file_name="xml_data_dictionary.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
