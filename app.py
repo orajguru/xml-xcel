@@ -6,7 +6,7 @@ from parser import parse_xml, analyze_structure
 
 st.set_page_config(page_title="XML Reverse Engineering Tool", layout="wide")
 
-st.title("XML Reverse Engineering Tool")
+st.title("XML -> Excel")
 
 st.write(
 """
