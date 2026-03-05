@@ -1,14 +1,47 @@
+
 import pandas as pd
 from lxml import etree
+from collections import Counter
 
 
-def get_parent_attr(element, tag_name):
+def analyze_structure(file):
+
+    tree = etree.parse(file)
+    root = tree.getroot()
+
+    tags = [elem.tag for elem in root.iter()]
+
+    tag_counts = Counter(tags)
+
+    return dict(tag_counts)
+
+
+def get_nearest_parent(element, tag_name):
+
     parent = element.getparent()
+
     while parent is not None:
+
         if parent.tag.lower() == tag_name:
             return parent.get("name")
+
         parent = parent.getparent()
+
     return "UNKNOWN"
+
+
+def detect_row_node(element):
+
+    parent = element.getparent()
+
+    while parent is not None:
+
+        if parent.tag.lower() == "row":
+            return parent
+
+        parent = parent.getparent()
+
+    return None
 
 
 def parse_xml(file):
@@ -16,20 +49,19 @@ def parse_xml(file):
     tree = etree.parse(file)
     root = tree.getroot()
 
-    # Detect elements that represent fields
+    # detect field-like elements
     fields = root.xpath(".//*[@fieldid]")
 
     if not fields:
         return pd.DataFrame()
 
-    # Detect ALL metadata attributes dynamically
-    metadata_keys = set()
+    # collect dynamic attributes
+    attributes = set()
 
     for f in fields:
-        for k in f.attrib.keys():
-            metadata_keys.add(k)
+        attributes.update(f.attrib.keys())
 
-    metadata_keys = sorted(list(metadata_keys))
+    attributes = sorted(list(attributes))
 
     records = []
 
@@ -37,25 +69,17 @@ def parse_xml(file):
 
     for field in fields:
 
-        tab_name = get_parent_attr(field, "tab")
-        section_name = get_parent_attr(field, "section")
+        tab = get_nearest_parent(field, "tab")
+        section = get_nearest_parent(field, "section")
 
-        # Detect row
-        row_node = None
-        parent = field.getparent()
-
-        while parent is not None:
-            if parent.tag.lower() == "row":
-                row_node = parent
-                break
-            parent = parent.getparent()
+        row_node = detect_row_node(field)
 
         row_id = 1
         col_id = 1
 
         if row_node is not None:
 
-            section_key = (tab_name, section_name)
+            section_key = (tab, section)
 
             if section_key not in section_row_map:
                 section_row_map[section_key] = {}
@@ -67,24 +91,25 @@ def parse_xml(file):
 
             row_id = row_map[row_node]
 
-            # Detect column position
             cols = row_node.findall(".//col")
 
             if cols:
+
                 for i, col in enumerate(cols, start=1):
+
                     if field in col.iter():
                         col_id = i
                         break
 
         record = {
-            "Tab_Name": tab_name,
-            "Section_Name": section_name,
+            "Tab_Name": tab,
+            "Section_Name": section,
             "Row_ID": row_id,
             "Column_ID": col_id
         }
 
-        for key in metadata_keys:
-            record[key] = field.attrib.get(key, "NULL")
+        for attr in attributes:
+            record[attr] = field.attrib.get(attr, "NULL")
 
         records.append(record)
 
