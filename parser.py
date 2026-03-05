@@ -3,59 +3,30 @@ from lxml import etree
 from collections import Counter
 
 
-# -------------------------------
-# Tag detection configuration
-# -------------------------------
+# -----------------------------
+# Tag definitions
+# -----------------------------
 
-TAB_TAGS = ["tab", "tabpane", "tabpanel"]
-SECTION_TAGS = ["section", "sectionpane", "group", "panel", "container", "block"]
+TAB_TAGS = ["tab"]
+SECTION_TAGS = ["section"]
 ROW_TAGS = ["row"]
 COL_TAGS = ["col", "column"]
-LABEL_TAGS = ["text", "label", "title", "htag"]
 
 
-# -------------------------------
-# Utility: check tag contains keyword
-# -------------------------------
+# -----------------------------
+# Match tag helper
+# -----------------------------
 
 def tag_matches(tag, keywords):
+
     tag = tag.lower()
+
     return any(k in tag for k in keywords)
 
 
-# -------------------------------
-# Extract display name from node
-# -------------------------------
-
-def extract_display_name(node):
-
-    if node is None:
-        return None
-
-    # attribute priority
-    for attr in ["name", "title", "label", "caption"]:
-        if node.get(attr):
-            return node.get(attr)
-
-    # check label-like children
-    for label_tag in LABEL_TAGS:
-
-        child = node.find(f"./{label_tag}")
-
-        if child is not None:
-
-            if child.get("name"):
-                return child.get("name")
-
-            if child.text and child.text.strip():
-                return child.text.strip()
-
-    return None
-
-
-# -------------------------------
-# Find nearest parent by tag group
-# -------------------------------
+# -----------------------------
+# Find nearest parent by tag
+# -----------------------------
 
 def find_parent(element, tag_list):
 
@@ -71,67 +42,101 @@ def find_parent(element, tag_list):
     return None
 
 
-# -------------------------------
-# Extract tab name
-# -------------------------------
+# -----------------------------
+# Extract text from
+# <text><lang text="..."/></text>
+# -----------------------------
+
+def extract_display_text(node):
+
+    if node is None:
+        return None
+
+    text_node = node.find("./text")
+
+    if text_node is None:
+        return None
+
+    # case: text -> lang -> text attribute
+    lang_node = text_node.find("./lang")
+
+    if lang_node is not None:
+
+        if lang_node.get("text"):
+            return lang_node.get("text")
+
+    # case: text attribute
+    if text_node.get("text"):
+        return text_node.get("text")
+
+    # case: name attribute
+    if text_node.get("name"):
+        return text_node.get("name")
+
+    # case: direct text value
+    if text_node.text and text_node.text.strip():
+        return text_node.text.strip()
+
+    return None
+
+
+# -----------------------------
+# Get Tab Name
+# -----------------------------
 
 def get_tab_name(field):
 
     tab_node = find_parent(field, TAB_TAGS)
 
-    name = extract_display_name(tab_node)
+    name = extract_display_text(tab_node)
 
     if name:
         return name
 
-    if tab_node is not None and tab_node.get("id"):
-        return tab_node.get("id")
+    if tab_node is not None:
+        return tab_node.tag
 
     return "UNKNOWN"
 
 
-# -------------------------------
-# Extract section name
-# -------------------------------
+# -----------------------------
+# Get Section Name
+# -----------------------------
 
 def get_section_name(field):
 
     section_node = find_parent(field, SECTION_TAGS)
 
-    name = extract_display_name(section_node)
+    name = extract_display_text(section_node)
 
     if name:
         return name
 
-    if section_node is not None and section_node.get("id"):
-        return section_node.get("id")
+    if section_node is not None:
+        return section_node.tag
 
     return "UNKNOWN"
 
 
-# -------------------------------
+# -----------------------------
 # Detect row node
-# -------------------------------
+# -----------------------------
 
 def detect_row_node(field):
 
     return find_parent(field, ROW_TAGS)
 
 
-# -------------------------------
-# Detect column position
-# -------------------------------
+# -----------------------------
+# Detect column index
+# -----------------------------
 
 def detect_column(field, row_node):
 
     if row_node is None:
         return 1
 
-    cols = []
-
-    for child in row_node.iter():
-        if tag_matches(child.tag, COL_TAGS):
-            cols.append(child)
+    cols = row_node.findall(".//col")
 
     if not cols:
         return 1
@@ -144,9 +149,9 @@ def detect_column(field, row_node):
     return 1
 
 
-# -------------------------------
-# XML structure analysis
-# -------------------------------
+# -----------------------------
+# XML Structure Analyzer
+# -----------------------------
 
 def analyze_structure(file):
 
@@ -158,22 +163,22 @@ def analyze_structure(file):
     return dict(Counter(tags))
 
 
-# -------------------------------
-# Main parser
-# -------------------------------
+# -----------------------------
+# Main XML Parser
+# -----------------------------
 
 def parse_xml(file):
 
     tree = etree.parse(file)
     root = tree.getroot()
 
-    # detect fields by attribute instead of tag name
+    # detect fields via attribute
     fields = root.xpath(".//*[@fieldid]")
 
     if not fields:
         return pd.DataFrame()
 
-    # collect dynamic metadata attributes
+    # collect all metadata attributes dynamically
     metadata_keys = set()
 
     for f in fields:
