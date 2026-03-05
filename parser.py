@@ -1,10 +1,8 @@
-
 import pandas as pd
 from lxml import etree
 
 
 def get_parent_attr(element, tag_name):
-    """Find nearest ancestor with given tag"""
     parent = element.getparent()
     while parent is not None:
         if parent.tag.lower() == tag_name:
@@ -18,12 +16,13 @@ def parse_xml(file):
     tree = etree.parse(file)
     root = tree.getroot()
 
-    fields = root.findall(".//field")
+    # Detect elements that represent fields
+    fields = root.xpath(".//*[@fieldid]")
 
     if not fields:
         return pd.DataFrame()
 
-    # Dynamically collect ALL metadata attributes
+    # Detect ALL metadata attributes dynamically
     metadata_keys = set()
 
     for f in fields:
@@ -44,14 +43,15 @@ def parse_xml(file):
         # Detect row
         row_node = None
         parent = field.getparent()
+
         while parent is not None:
             if parent.tag.lower() == "row":
                 row_node = parent
                 break
             parent = parent.getparent()
 
-        row_id = None
-        col_id = None
+        row_id = 1
+        col_id = 1
 
         if row_node is not None:
 
@@ -67,18 +67,14 @@ def parse_xml(file):
 
             row_id = row_map[row_node]
 
-            # Determine column index
+            # Detect column position
             cols = row_node.findall(".//col")
-            col_id = 1
 
             if cols:
                 for i, col in enumerate(cols, start=1):
                     if field in col.iter():
                         col_id = i
                         break
-        else:
-            row_id = 1
-            col_id = 1
 
         record = {
             "Tab_Name": tab_name,
