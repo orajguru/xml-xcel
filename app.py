@@ -18,7 +18,6 @@ Upload any XML UI/config file and the tool will:
 • Generate a data dictionary Excel  
 • Show XML structure insights  
 
-Designed for reverse engineering large enterprise XML forms.
 """
 )
 
